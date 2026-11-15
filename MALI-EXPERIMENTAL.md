@@ -23,7 +23,7 @@
 | `app/src/test/java/app/gamenative/ui/screen/wow/WowGraphicsBackendTest.kt` | Тесты Mali, Adreno и fallback SoC. |
 | `app/src/test/java/app/gamenative/ui/screen/wow/WowVulkanDiagnosticsTest.kt` | Тесты итогового окружения, ICD и приоритета точного VkResult. |
 | `tools/fetch_components.sh`, `tools/components.sha256` | Wrapper для Mali, проверка SHA-256, совместимость проверки сумм с Git Bash/CRLF. |
-| `.github/workflows/debug-mali.yml` | JDK17, SDK/NDK, сборка, тесты, отчёт Lint и APK как Actions artifact. |
+| `.github/workflows/debug-mali.yml` | JDK 17, SDK/NDK, сборка отдельного APK, тесты и отчёт Lint. |
 | `.gitignore` | Локальные исследовательские материалы `.work/`. |
 | `MALI-EXPERIMENTAL.md`, `README.md` | Анализ, ограничения, установка, сборка и протокол проверки. |
 
@@ -228,7 +228,7 @@ Set-Content local.properties ('sdk.dir=' + $env:ANDROID_HOME.Replace('\','/'))
 Исходные правила `Config.wtf` оставлены: D3D11 и разрешение, без патчей EXE/игровых архивов.
 
 GitHub Actions: отправить этот код в свой fork, открыть Actions → Experimental Mali Debug APK → Run workflow.
-Загрузить artifact `WoW-Forever-Mali-experimental-debug`. Ключи release signing не нужны.
+Результаты тестов и Lint доступны в архиве `WoW-Forever-Mali-build-reports`. Проверенная на телефоне версия доступна через раздел Releases.
 
 
 ## Проверки этой сборки
