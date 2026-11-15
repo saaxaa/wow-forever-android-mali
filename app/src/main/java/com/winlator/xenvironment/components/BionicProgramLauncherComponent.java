@@ -413,6 +413,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             return -1;
         }
 
+        if ("1".equals(envVars.get("WOW_MALI_SYSTEM"))) {
+            app.gamenative.ui.screen.wow.WowVulkanDiagnostics.applySystemEnvironment(context, envVars, imageFs);
+        }
         Log.d("BionicProgramLauncherComponent", "env vars are " + EnvVarRedaction.redact(envVars));
 
         String emulator = container.getEmulator();

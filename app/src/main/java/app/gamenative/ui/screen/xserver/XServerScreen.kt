@@ -3618,17 +3618,25 @@ private fun setupXEnvironment(
     )
     // capture debug output to file if either Wine or Box86/64 logging is enabled
     var logFile: File? = null
-    val captureLogs = enableWineDebug || enableBox86Logs
+    val maliSystem = EnvVars(container.envVars).get("WOW_MALI_SYSTEM") == "1"
+    val captureLogs = enableWineDebug || enableBox86Logs || maliSystem
     if (captureLogs) {
-        val wineLogDir = File(context.getExternalFilesDir(null), "wine_logs")
+        val wineLogDir = File(if (maliSystem) context.filesDir else context.getExternalFilesDir(null), "wine_logs")
         wineLogDir.mkdirs()
         logFile = File(wineLogDir, "wine_debug.log")
         if (logFile.exists()) logFile.delete()
     }
 
+    val maliWineLog = if (maliSystem) File(app.gamenative.ui.screen.wow.WowVulkanDiagnostics.directory(context), "wine-proton.log") else null
     ProcessHelper.addDebugCallback { line ->
         if (captureLogs) {
-            logFile?.appendText(line + "\n")
+            runCatching { logFile?.appendText(line + "\n") }
+            if (maliSystem) {
+                android.util.Log.i("WoWWine", line)
+                runCatching {
+                    maliWineLog?.appendText(line + "\n")
+                }
+            }
         }
     }
 
@@ -3781,7 +3789,9 @@ private fun setupXEnvironment(
     val gameTerminationCallback = Callback<Int> { status ->
         if (status != 0) {
             Timber.e("Guest program terminated with status: $status")
-            onGameLaunchError?.invoke("Game terminated with error status: $status")
+            val graphicsFailure = if (maliSystem) app.gamenative.ui.screen.wow.WowVulkanDiagnostics.lastFailure(context) else null
+            onGameLaunchError?.invoke(graphicsFailure ?: "Game terminated with error status: $status" +
+                if (maliSystem) "\nNo conclusive graphics error captured; inspect graphics_logs and WoW Logs/gx.log." else "")
         }
         PluviaApp.events.emit(AndroidEvent.GuestProgramTerminated)
     }
@@ -4722,12 +4732,14 @@ private suspend fun extractGraphicsDriverFiles(
 
         // 1. Get the main WRAPPER selection (e.g., "Wrapper-v2") from the class field.
         val mainWrapperSelection: String = graphicsDriver
+        val maliSystemBackend = EnvVars(container.envVars).get("WOW_MALI_SYSTEM") == "1"
+        val wrapperCacheKey = if (maliSystemBackend) "$mainWrapperSelection:mali-system-1a546621cf28" else mainWrapperSelection
 
         // 2. Get the WRAPPER that was last saved to the container's settings.
         val lastInstalledMainWrapper = container.getExtra("lastInstalledMainWrapper")
 
         // 3. Check if we need to extract a new wrapper file.
-        if (ALWAYS_REEXTRACT || firstTimeBoot || mainWrapperSelection != lastInstalledMainWrapper) {
+        if (ALWAYS_REEXTRACT || firstTimeBoot || wrapperCacheKey != lastInstalledMainWrapper) {
             // We only extract if the selection is actually a wrapper file.
             if (mainWrapperSelection.lowercase(Locale.getDefault()).startsWith("wrapper")) {
                 val wrapperComponentId = mainWrapperSelection.lowercase(Locale.getDefault())
@@ -4736,14 +4748,19 @@ private suspend fun extractGraphicsDriverFiles(
                     val wrapperContentsManager = ContentsManager(context)
                     val wrapperProfile: ContentProfile? =
                         wrapperContentsManager.getProfileByEntryName(wrapperComponentId)
-                    if (wrapperProfile != null) {
+                    if (maliSystemBackend) {
+                        check(TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
+                            "bundled_components/wrapper-gamenative-20260724.tzst", rootDir!!)) {
+                            "Failed to extract pinned system Vulkan wrapper for Mali"
+                        }
+                    } else if (wrapperProfile != null) {
                         Timber.d("Applying user-defined wrapper content profile: $wrapperComponentId")
                         wrapperContentsManager.applyContent(wrapperProfile)
                     } else {
                         extractGraphicsDriverComponent(context, wrapperComponentId, rootDir!!)
                     }
                     // After success, save the new version so we don't re-extract next time.
-                    container.putExtra("lastInstalledMainWrapper", mainWrapperSelection)
+                    container.putExtra("lastInstalledMainWrapper", wrapperCacheKey)
                     container.saveData()
                 } catch (e: Exception) {
                     throw IllegalStateException(
@@ -4764,25 +4781,28 @@ private suspend fun extractGraphicsDriverFiles(
             }
         }
 
-        if (adrenoToolsDriverId !== "System") {
+        if (adrenoToolsDriverId != "System") {
             val adrenotoolsManager: AdrenotoolsManager = AdrenotoolsManager(context)
             adrenotoolsManager.setDriverById(envVars, imageFs, adrenoToolsDriverId)
         }
 
-        var vulkanVersion = graphicsDriverConfig.get("vulkanVersion") ?: "1.0"
-        val vulkanVersionPatch = GPUHelper.vkVersionPatch()
+        if (EnvVars(container.envVars).get("WOW_MALI_SYSTEM") != "1") {
+            var vulkanVersion = graphicsDriverConfig.get("vulkanVersion") ?: "1.0"
+            val vulkanVersionPatch = GPUHelper.vkVersionPatch()
 
-        vulkanVersion = "$vulkanVersion.$vulkanVersionPatch"
-        envVars.put("WRAPPER_VK_VERSION", vulkanVersion)
+            vulkanVersion = "$vulkanVersion.$vulkanVersionPatch"
+            envVars.put("WRAPPER_VK_VERSION", vulkanVersion)
 
-        val blacklistedExtensions: String? = graphicsDriverConfig.get("blacklistedExtensions")
-        envVars.put("WRAPPER_EXTENSION_BLACKLIST", blacklistedExtensions)
+            val blacklistedExtensions: String? = graphicsDriverConfig.get("blacklistedExtensions")
+            envVars.put("WRAPPER_EXTENSION_BLACKLIST", blacklistedExtensions)
 
-        val gpuName = graphicsDriverConfig.get("gpuName")
-        if (gpuName != "Device") {
-            envVars.put("WRAPPER_DEVICE_NAME", gpuName)
-            envVars.put("WRAPPER_DEVICE_ID", GPUInformation.getDeviceIdFromGPUName(context, gpuName))
-            envVars.put("WRAPPER_VENDOR_ID", GPUInformation.getVendorIdFromGPUName(context, gpuName))
+            val gpuName = graphicsDriverConfig.get("gpuName")
+            if (gpuName != "Device") {
+                envVars.put("WRAPPER_DEVICE_NAME", gpuName)
+                envVars.put("WRAPPER_DEVICE_ID", GPUInformation.getDeviceIdFromGPUName(context, gpuName))
+                envVars.put("WRAPPER_VENDOR_ID", GPUInformation.getVendorIdFromGPUName(context, gpuName))
+            }
+
         }
 
         val maxDeviceMemory: String? = graphicsDriverConfig.get("maxDeviceMemory", "0")
@@ -4843,6 +4863,10 @@ private suspend fun extractGraphicsDriverFiles(
             envVars.put("ENABLE_VKBASALT", "1")
             envVars.put("VKBASALT_CONFIG", vkbasaltConfig)
         }
+        if (EnvVars(container.envVars).get("WOW_MALI_SYSTEM") == "1") {
+            app.gamenative.ui.screen.wow.WowVulkanDiagnostics.applySystemEnvironment(context, envVars, imageFs)
+        }
+
     }
 }
 

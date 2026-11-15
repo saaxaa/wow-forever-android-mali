@@ -1,8 +1,8 @@
-# WoW Forever for Android
+# WoW Forever for Android on Xiaomi 14T (Mali-G615 MC6)
 
-Play **World of Warcraft: Forever** on Snapdragon Android handhelds as a normal Android app. You tap the icon, press Play, and the game runs.
+This fork adds an experimental system Vulkan backend for the Xiaomi 14T with MediaTek Dimensity 8300-Ultra and Mali-G615 MC6. It builds on **WoW Forever for Android by @jaredgei**, which brought Blizzard’s Windows ARM64 WoW client to Android using GameNative, Wine and DXVK. The fork retains the upstream Adreno/Turnip path. [Original project](https://github.com/jaredgei/wow-forever-android) · [Base revision, v2.4.2](https://github.com/jaredgei/wow-forever-android/commit/62936c2399b7111b0251fa8099bef86379a3d91a)
 
-This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs natively on the phone's CPU. Wine translates the Windows calls, and DXVK plus a patched Turnip Vulkan driver render the game on the Adreno GPU. Nothing is emulated as x86.
+**Verified on a physical Xiaomi 14T:** the client played its opening cinematic and rendered the Battle.net login screen on two launches using the working Mali configuration. Tests used Android 16, HyperOS OS3.0.303.0.WNERUXM, Vulkan 1.3.247, DXVK 2.4.1 and client 1.60.1.70938. Character selection, entering the world and sustained gameplay are unverified. [Mali installation and testing guide (Russian)](MALI-EXPERIMENTAL.md)
 
 > Unofficial community project. Not affiliated with or endorsed by Blizzard Entertainment. You need your own Battle.net account with WoW Forever access. This repo and its releases contain **no** Blizzard game files.
 
@@ -12,6 +12,7 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 
 | Device | Status |
 | :--- | :--- |
+| Xiaomi 14T (Dimensity 8300-Ultra / Mali-G615 MC6) | Opening cinematic and Battle.net login screen verified on this fork |
 | AYN Thor (Snapdragon 8 Gen 2 / Adreno 740) | Tested, reaches the game world with controller support |
 | Retroid Pocket 6 (Snapdragon 8 Gen 2 / Adreno 740) | Tested by the original community setup |
 | AYN Odin 2 / Mini (Snapdragon 8 Gen 2) | Expected to work |
@@ -23,7 +24,7 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 
 Requirements:
 
-- Snapdragon 8 series (Adreno 7xx or Adreno 8xx). The app bundles both the Adreno 740 driver and the Turnip v32 driver for Snapdragon 8 Elite / Adreno 8xx, automatically detecting the GPU and applying the optimal driver and environment flags.
+- Xiaomi 14T for the tested Mali configuration, or Snapdragon 8 series (Adreno 7xx or Adreno 8xx) for the upstream Turnip path. The app bundles both the Adreno 740 driver and the Turnip v32 driver for Snapdragon 8 Elite / Adreno 8xx, automatically detecting the GPU and applying the optimal driver and environment flags.
 - Android 10 or newer, 64-bit.
 - About **60 GB** free for the game data (internal storage or SD card), plus about 4 GB of internal storage for the app and its Windows environment.
 - Wi-Fi. A computer is optional: it only speeds up the first install by copying the game data over instead of streaming it.
@@ -34,7 +35,7 @@ Requirements:
 
 ### 1. Install the app
 
-Download `WoW-Forever.apk` from the [latest release](https://github.com/jaredgei/wow-forever-android/releases/latest) and install it on your device. The app's package name is `app.wowforever`, so it can sit alongside GameNative or Winlator.
+For the Xiaomi build, follow the instructions in the [Mali release](https://github.com/saaxaa/wow-forever-android-mali/releases/tag/v2.4.2-mali.1). The tested debug package installs as **WoW Forever Mali (test)** (`app.wowforever.mali`) alongside the upstream app. For the tested storage layout, install or locate the game data, then make a private copy as described in the [Xiaomi 14T guide](MALI-EXPERIMENTAL.md#внутренняя-папка-и-ранние-испытания-с-исходным-wrapper).
 
 ### 2. Install the game
 
@@ -132,12 +133,12 @@ Requirements: JDK 17 and the Android SDK (with build-tools and platform-tools).
 ```bash
 tools/fetch_components.sh           # Wine/Proton, DXVK and Turnip archives (~130 MB, not in git)
 ./gradlew assembleModernRelease     # app/build/outputs/apk/modern/release/app-modern-release.apk
-./gradlew assembleModernDebug       # unminified debug build, faster to iterate on
+./gradlew -PmaliSideBySide=true :app:assembleModernDebug  # Xiaomi side-by-side package
 ```
 
 Release builds are signed with `app/keystores/keystore.properties` when it exists (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Otherwise they fall back to the debug key. Builds signed with different keys can't update each other, so switching between them means uninstalling first.
 
-`fetch_components.sh` downloads the three runtime archives from this repo's `components-v1` release and checks them against `tools/components.sha256`. If you already have them, pass a folder instead: `tools/fetch_components.sh /path/to/components`.
+`fetch_components.sh` downloads the five pinned runtime archives from their upstream sources and checks them against `tools/components.sha256`. If you already have them, pass a folder instead: `tools/fetch_components.sh /path/to/components`.
 
 ---
 

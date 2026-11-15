@@ -39,6 +39,10 @@ android {
 
     defaultConfig {
         applicationId = "app.wowforever"
+        manifestPlaceholders["appLabel"] = "@string/app_name"
+        externalNativeBuild {
+            cmake { arguments += "-DANDROID_STL=c++_static" }
+        }
 
         minSdk = 26
 
@@ -108,6 +112,11 @@ android {
 
     buildTypes {
         debug {
+            if (providers.gradleProperty("maliSideBySide").orNull == "true") {
+                applicationIdSuffix = ".mali"
+                versionNameSuffix = "-mali-test"
+                manifestPlaceholders["appLabel"] = "WoW Forever Mali (test)"
+            }
             isDebuggable = true
             isMinifyEnabled = false
             isShrinkResources = false
@@ -123,6 +132,14 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // Build only the new diagnostics. Existing Winlator libraries remain prebuilt.
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/wow/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     kotlinOptions {

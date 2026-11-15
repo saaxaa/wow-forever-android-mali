@@ -83,3 +83,5 @@ Wow-ARM64/
 
 # Agent guidance (private)
 docs/
+.work/
+/artifacts/

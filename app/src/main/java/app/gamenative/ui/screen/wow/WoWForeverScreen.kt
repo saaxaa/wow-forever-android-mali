@@ -109,6 +109,8 @@ fun WoWForeverScreen(
     var showLoginDialog by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(READY_STATUS) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var graphicsReport by remember { mutableStateOf<String?>(null) }
+    var graphicsProbeRunning by remember { mutableStateOf(false) }
     var showStoragePermissionDialog by remember { mutableStateOf(false) }
     var versionStatus by remember { mutableStateOf<WowClientDownloader.VersionCheckResult?>(null) }
     var isCheckingVersion by remember { mutableStateOf(false) }
@@ -266,6 +268,7 @@ fun WoWForeverScreen(
     DisposableEffect(Unit) {
         val reset: (Any) -> Unit = {
             resetLaunch()
+            if (gpu.systemVulkan) WowVulkanDiagnostics.lastFailure(context)?.let { errorMessage = it }
             BattleNetSignIn.removeLoginFile(File(gamePath))
         }
         PluviaApp.events.on<AndroidEvent.ForceCloseApp, Unit>(reset)
@@ -700,6 +703,21 @@ fun WoWForeverScreen(
                             checkVersionStatus()
                             checkAppUpdate()
                         }
+                        if (gpu.systemVulkan) {
+                            LinkButton(if (graphicsProbeRunning) "Testing Vulkan..." else "Test Vulkan", Icons.Default.CheckCircle,
+                                enabled = !graphicsProbeRunning && !isLaunching && !isUpdating) {
+                                graphicsProbeRunning = true
+                                scope.launch {
+                                    graphicsReport = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            WowVulkanDiagnostics.prepare(context, gpu.label)
+                                            File(WowVulkanDiagnostics.directory(context), "system-vulkan.txt").readText()
+                                        }.getOrElse { it.message ?: it.toString() }
+                                    }
+                                    graphicsProbeRunning = false
+                                }
+                            }
+                        }
                         if (!files.needsInstall) {
                             LinkButton("Location", Icons.Default.FolderOpen) { folderPicker.launch(null) }
                             // Some file managers label zips as generic binary files, so both types are offered.
@@ -726,6 +744,16 @@ fun WoWForeverScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    graphicsReport?.let { report ->
+        AlertDialog(
+            onDismissRequest = { graphicsReport = null },
+            title = { Text("System Vulkan test (experimental)") },
+            text = { Text(report, modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+            confirmButton = { TextButton(onClick = { graphicsReport = null }) { Text("CLOSE") } },
+        )
     }
 
     if (showLoginDialog) {
@@ -1025,6 +1053,10 @@ object GamePath {
     fun load(context: Context): String {
         val saved = prefs(context).getString(KEY_GAME_PATH, null)?.let(::File)
         if (saved != null && saved.isDirectory) return saved.absolutePath
+        val privateCopy = File(context.filesDir, "wow-private")
+        if (TARGET_PRODUCT in productsOf(privateCopy) && File(privateCopy, "$FLAVOR_DIR/$EXE_NAME").isFile) {
+            return privateCopy.absolutePath
+        }
         val defaults = listOf(defaultPath) + context.getExternalFilesDirs(null).drop(1).filterNotNull()
             .map { File(it.path.substringBefore("/Android/"), defaultPath.name) }
         val usable = defaults.firstOrNull { TARGET_PRODUCT in productsOf(it) } ?: defaults.firstOrNull { LEGACY_PRODUCT in productsOf(it) }
@@ -1180,12 +1212,20 @@ private const val ADRENO_8XX_DRIVER = "Turnip-V32-RP6sched"
 private const val PROTON_VERSION = "proton-11.0-90624-arm64ec"
 private const val DXVK_VERSION = "2.4.1-wow-aarch64-test"
 
-private data class GpuProfile(val driver: String, val tuDebug: String, val screenSize: String, val label: String, val edition: String) {
+private data class GpuProfile(val driver: String, val tuDebug: String, val screenSize: String, val label: String, val edition: String, val systemVulkan: Boolean = false, val recognized: Boolean = true) {
     companion object {
-        fun detect(context: Context) = if (isAdreno8xxDevice(context)) {
-            GpuProfile(ADRENO_8XX_DRIVER, "noconform,sysmem", "1280x720", "Adreno 8xx", "Snapdragon 8 Elite / Adreno 8xx")
-        } else {
-            GpuProfile(DEFAULT_DRIVER, "noconform", "1920x1080", "Adreno 740", "Snapdragon 8 Series / Adreno 740")
+        fun detect(context: Context): GpuProfile {
+            val renderer = GPUInformation.getRenderer(context)
+            val soc = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else ""
+            return when (WowGraphicsBackend.detect(renderer, soc, Build.HARDWARE)) {
+                WowGraphicsBackend.MALI_SYSTEM -> GpuProfile("System", "", "1280x720", renderer.ifBlank { "Mali / MediaTek" }, "Experimental Mali / system Vulkan (device testing required)", true)
+                WowGraphicsBackend.TURNIP -> if (isAdreno8xxDevice(context)) {
+                    GpuProfile(ADRENO_8XX_DRIVER, "noconform,sysmem", "1280x720", "Adreno 8xx", "Snapdragon 8 Elite / Adreno 8xx")
+                } else {
+                    GpuProfile(DEFAULT_DRIVER, "noconform", "1920x1080", renderer, "Snapdragon / Adreno")
+                }
+                WowGraphicsBackend.UNSUPPORTED -> GpuProfile("System", "", "1280x720", renderer.ifBlank { "Unknown GPU" }, "GPU not recognized: $renderer", recognized = false)
+            }
         }
 
         private fun isAdreno8xxDevice(context: Context): Boolean {
@@ -1223,7 +1263,14 @@ internal fun fitScreenSize(baseSize: String, windowWidth: Int, windowHeight: Int
 }
 
 private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, screenSize: String, onStatus: (String) -> Unit): String {
-    installBundledComponents(context, onStatus)
+    check(gpu.recognized) { "${gpu.edition}. No compatible backend selected; report the EGL renderer and SoC model." }
+    if (gpu.systemVulkan) {
+        onStatus("Testing real system Vulkan instance and device...")
+        val dir = WowVulkanDiagnostics.directory(context)
+        dir.listFiles()?.filter { it.extension == "log" }?.forEach { it.delete() }
+        WowVulkanDiagnostics.prepare(context, gpu.label)
+    }
+    installBundledComponents(context, gpu, onStatus)
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
     try {
@@ -1245,7 +1292,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
 
     onStatus("Configuring ${gpu.label} container...")
     val containerManager = ContainerManager(context)
-    val config = containerConfig(gameRoot, gpu, screenSize, WowMachineIdentity.load(context))
+    val config = containerConfig(context, gameRoot, gpu, screenSize, WowMachineIdentity.load(context))
     val container = containerManager.getContainerById(CONTAINER_ID)
     if (container == null) {
         onStatus("Creating prefix environment (first boot)...")
@@ -1263,9 +1310,12 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
     return CONTAINER_ID
 }
 
-private fun containerConfig(gameRoot: File, gpu: GpuProfile, screenSize: String, identity: WowMachineIdentity): JSONObject {
+private fun containerConfig(context: Context, gameRoot: File, gpu: GpuProfile, screenSize: String, identity: WowMachineIdentity): JSONObject {
     val samsungEnv = if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) " FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1" else ""
-    val envVars = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact,deck_emu MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=0 MESA_VK_WSI_PRESENT_MODE=mailbox TU_DEBUG=${gpu.tuDebug} VKD3D_SHADER_MODEL=6_0 PULSE_LATENCY_MSEC=144 ${WowMachineIdentity.HOSTNAME_ENV}=${identity.computerName}$samsungEnv"
+    val turnipEnvVars = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact,deck_emu MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=0 MESA_VK_WSI_PRESENT_MODE=mailbox TU_DEBUG=${gpu.tuDebug} VKD3D_SHADER_MODEL=6_0 PULSE_LATENCY_MSEC=144 ${WowMachineIdentity.HOSTNAME_ENV}=${identity.computerName}$samsungEnv"
+    val envVars = if (gpu.systemVulkan) {
+        "WOW_MALI_SYSTEM=1 WRAPPER_MAX_IMAGE_COUNT=0 WINEESYNC=0 PULSE_LATENCY_MSEC=144 ${WowMachineIdentity.HOSTNAME_ENV}=${identity.computerName}"
+    } else turnipEnvVars
     return JSONObject().apply {
         put("id", CONTAINER_ID)
         put("name", "WoW Forever")
@@ -1273,14 +1323,21 @@ private fun containerConfig(gameRoot: File, gpu: GpuProfile, screenSize: String,
         put("envVars", envVars)
         put("graphicsDriver", "Wrapper")
         put("graphicsDriverVersion", gpu.driver)
-        put("graphicsDriverConfig", "version=${gpu.driver},adrenotoolsTurnip=1,resourceType=buffer,bcnEmulation=auto,quality=high")
+        put("graphicsDriverConfig", if (gpu.systemVulkan)
+            "version=System,adrenotoolsTurnip=0,gpuName=Device,resourceType=buffer,bcnEmulation=auto,quality=high"
+        else "version=${gpu.driver},adrenotoolsTurnip=1,resourceType=buffer,bcnEmulation=auto,quality=high")
         put("displayRenderer", "vulkan")
         put("dxwrapper", "dxvk-$DXVK_VERSION-1")
         put("dxwrapperConfig", "version=$DXVK_VERSION-1")
         put("wineVersion", "$PROTON_VERSION-1")
         put("containerVariant", "bionic")
         put("fexcoreVersion", "2609-0")
-        put("drives", "D:/storage/emulated/0/DownloadE:/data/data/app.wowforever/storageG:${gameRoot.path}")
+        val appStorage = "/data/data/${BuildConfig.APPLICATION_ID}/storage"
+        val graphicsLogDir = if (gpu.systemVulkan) WowVulkanDiagnostics.directory(context) else null
+        val downloads = if (gpu.systemVulkan && gameRoot.startsWith(context.filesDir)) {
+            appStorage
+        } else "/storage/emulated/0/Download"
+        put("drives", "D:${downloads}E:${appStorage}G:${gameRoot.path}" + (graphicsLogDir?.let { "L:${it.absolutePath}" } ?: ""))
         put("executablePath", "G:\\$FLAVOR_DIR\\$EXE_NAME")
         put("execArgs", "-d3d11")
         put("showFPS", true)
@@ -1375,9 +1432,11 @@ private fun portalOf(root: File) =
         ?: WowClientDownloader.readBuildInfo(File(root, BUILD_INFO))?.get("Branch")?.takeIf { it.isNotBlank() }?.uppercase()
         ?: WowClientDownloader.defaultBranch().uppercase()
 
-private fun installBundledComponents(context: Context, onStatus: (String) -> Unit) {
-    installDriver(context, DEFAULT_DRIVER, "turnip-wow-scheduler-test.zip", onStatus)
-    installDriver(context, ADRENO_8XX_DRIVER, "turnip-V32-RP6sched.zip", onStatus)
+private fun installBundledComponents(context: Context, gpu: GpuProfile, onStatus: (String) -> Unit) {
+    if (!gpu.systemVulkan) {
+        installDriver(context, DEFAULT_DRIVER, "turnip-wow-scheduler-test.zip", onStatus)
+        installDriver(context, ADRENO_8XX_DRIVER, "turnip-V32-RP6sched.zip", onStatus)
+    }
 
     val protonDir = File(ImageFs.getSharedProtonDir(context), PROTON_VERSION)
     if (!File(protonDir, "profile.json").exists() || !File(protonDir, "bin/wine").exists()) {
@@ -1392,7 +1451,7 @@ private fun installBundledComponents(context: Context, onStatus: (String) -> Uni
     val dxvkDir = File(ContentsManager.getContentTypeDir(context, ContentProfile.ContentType.CONTENT_TYPE_DXVK), DXVK_VERSION)
     if (!File(dxvkDir, "profile.json").exists()) {
         onStatus("Extracting DXVK ARM64...")
-        if (!extractBundledWcp(context, "dxvk-$DXVK_VERSION.wcp", dxvkDir)) Timber.e("Failed to extract DXVK")
+        check(extractBundledWcp(context, "dxvk-$DXVK_VERSION.wcp", dxvkDir)) { "Failed to extract DXVK ARM64 DLLs" }
     }
 
     ImageFsInstaller.ensureBionicLib(context, ImageFs.find(context).rootDir)

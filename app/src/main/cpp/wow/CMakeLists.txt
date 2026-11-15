@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(wow_vulkan_diagnostics LANGUAGES CXX)
+add_library(wow_vulkan SHARED vulkan_diagnostics.cpp)
+target_compile_features(wow_vulkan PRIVATE cxx_std_17)
+target_compile_options(wow_vulkan PRIVATE -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_libraries(wow_vulkan PRIVATE android log dl)
+target_link_options(wow_vulkan PRIVATE -Wl,-z,max-page-size=16384 -Wl,-Bsymbolic)
