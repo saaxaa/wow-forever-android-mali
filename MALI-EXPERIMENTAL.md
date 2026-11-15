@@ -149,13 +149,8 @@ Mali часто отличается от Adreno по BC formats и desktop shad
 
 ## Установка и проверка Xiaomi 14T
 
-1. Сохранить важные настройки существующей установки. Package ID остался `app.wowforever`.
-   Debug APK подписан локальным debug key; поверх официального APK с другим ключом Android
-   вернёт `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Не удалять исходную установку без резервной копии
-   её приватных настроек. Общий игровой каталог не входит в APK.
-2. При несовпадении подписей рекомендуется установить отдельную копию:
-   `adb install -r artifacts/WoW-Forever-Mali-side-by-side-debug.apk` (название **WoW Forever Mali (test)**,
-   package `app.wowforever.mali`). Она не заменяет основную установку. Для обычной сборки установить через файл или `adb install -r artifacts/WoW-Forever-Mali-experimental-debug.apk`.
+1. Скачать проверенный APK из релиза. Он устанавливается рядом с оригиналом под именем `app.wowforever.mali`. [Русская инструкция](INSTALL.ru.md) · [English guide](INSTALL.en.md).
+2. Открыть APK на телефоне или выполнить из папки загрузки `adb install -r WoW-Forever-Mali-side-by-side-debug.apk`. В списке приложений появится **WoW Forever Mali (test)**.
 3. В лаунчере должна отображаться Experimental Mali / system Vulkan.
    Нажать **Test Vulkan**: для этого не нужны игровые данные или Battle.net login.
    Сохранить `system-vulkan.txt`, включая GPU name, driverInfo, API, extensions, результаты device/fence.

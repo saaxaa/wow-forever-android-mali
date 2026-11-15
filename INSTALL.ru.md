@@ -1,0 +1,44 @@
+# WoW Forever на Xiaomi 14T
+
+[English](INSTALL.en.md) · [Скачать APK](https://github.com/saaxaa/wow-forever-android-mali/releases/download/v2.4.2-mali.1/WoW-Forever-Mali-side-by-side-debug.apk)
+
+На Xiaomi 14T с Mali-G615 MC6, Android 16 и HyperOS OS3.0.303.0.WNERUXM клиент дважды дошёл до экрана входа Battle.net. Проверены заставка и вывод изображения через системный Vulkan 1.3.247 и DXVK 2.4.1. Вход в аккаунт, выбор персонажа и игра в мире требуют отдельной проверки.
+
+### Установить и проверить Vulkan
+
+1. Скачайте APK по ссылке выше. Его можно открыть на телефоне и разрешить установку из выбранного источника. Для установки с компьютера включите отладку по USB, подключите телефон и выполните команды ниже из папки с APK. Если HyperOS запрашивает разрешение на установку через USB, подтвердите его на телефоне.
+2. Откройте **WoW Forever Mali (test)**. Приложение устанавливается рядом с оригиналом под именем пакета `app.wowforever.mali`.
+3. Нажмите **Test Vulkan**. Для этой проверки игровые данные и аккаунт не нужны. Отчёт содержит название GPU, версию драйвера, список расширений и результат создания Vulkan-устройства. При ошибке сохраните отчёт по инструкции ниже.
+
+```sh
+adb devices -l
+adb install -r WoW-Forever-Mali-side-by-side-debug.apk
+```
+
+### Подготовить игру и запустить
+
+1. На чистой установке разрешите доступ к файлам и нажмите **Download & Install**. Оставьте папку по умолчанию `/storage/emulated/0/WoW Forever`. Если клиент уже находится там, лаунчер обнаружит его. Ручной выбор через **Location** имеет приоритет над автоматическим поиском внутренней копии. Первой установке и потоковой загрузке игровых данных нужен интернет. Файлы Blizzard пользователь получает отдельно.
+2. На тестовом 14T процесс завершался при чтении из общей памяти. Для воспроизведения рабочего запуска используйте приватную копию. Если она уже создана, переходите к шагу 3. Для новой копии дождитесь загрузки клиента, включая `_forever_/Wow-ARM64.exe`. Выполните команды ниже в PowerShell или Bash. Сравните размер каталога в КиБ со свободным местом в разделе `/data` перед копированием. Приватная копия занимает дополнительное место и удаляется вместе с приложением.
+
+```sh
+adb shell am force-stop app.wowforever.mali
+adb shell 'du -sk /storage/emulated/0/WoW\ Forever && df -k /data'
+adb shell 'set -o pipefail; run-as app.wowforever.mali mkdir files/wow-private.incoming && (cd /storage/emulated/0/WoW\ Forever && tar -cf - .) | run-as app.wowforever.mali tar -C files/wow-private.incoming -xf - && run-as app.wowforever.mali mv -T files/wow-private.incoming files/wow-private'
+```
+
+3. Снова откройте приложение. В пути к игре должен отображаться каталог, заканчивающийся на `files/wow-private`. Выберите **720p** и нажмите **Play**. Первый запуск подготавливает Wine. Для проверки игры после появления экрана входа нужен собственный аккаунт с доступом к WoW Forever.
+
+### Если игра вернулась в лаунчер
+
+До следующего нажатия **Play** сохраните журналы последней сессии. Выполните первые две команды в PowerShell на Windows. На Linux/macOS замените вторую команду строкой под блоком.
+
+```powershell
+adb logcat -d -v threadtime > xiaomi14t-logcat.txt
+cmd /c "adb exec-out run-as app.wowforever.mali tar -C files -cf - graphics_logs wine_logs > xiaomi14t-logs.tar"
+```
+
+```sh
+adb exec-out run-as app.wowforever.mali tar -C files -cf - graphics_logs wine_logs > xiaomi14t-logs.tar
+```
+
+Если запускали только **Test Vulkan**, отчёт можно прочитать отдельно через `adb shell run-as app.wowforever.mali cat files/graphics_logs/system-vulkan.txt`. При сбое игры проверьте `vulkan-calls.log`, `*_d3d11.log` и `wine-proton.log` в каталоге `graphics_logs` внутри архива. В обращении укажите модель, версию HyperOS и последний видимый экран. Удалите адрес почты, имена персонажей и другие личные сведения из фрагментов перед публикацией. [Технический отчёт](MALI-EXPERIMENTAL.md) · [Сообщить о проблеме](https://github.com/saaxaa/wow-forever-android-mali/issues)

@@ -1,5 +1,7 @@
 # WoW Forever for Android on Xiaomi 14T (Mali-G615 MC6)
 
+[Инструкция на русском](INSTALL.ru.md) · [English installation guide](INSTALL.en.md) · [Download APK](https://github.com/saaxaa/wow-forever-android-mali/releases/download/v2.4.2-mali.1/WoW-Forever-Mali-side-by-side-debug.apk)
+
 This fork adds an experimental system Vulkan backend for the Xiaomi 14T with MediaTek Dimensity 8300-Ultra and Mali-G615 MC6. It builds on **WoW Forever for Android by @jaredgei**, which brought Blizzard’s Windows ARM64 WoW client to Android using GameNative, Wine and DXVK. The fork retains the upstream Adreno/Turnip path. [Original project](https://github.com/jaredgei/wow-forever-android) · [Base revision, v2.4.2](https://github.com/jaredgei/wow-forever-android/commit/62936c2399b7111b0251fa8099bef86379a3d91a)
 
 **Verified on a physical Xiaomi 14T:** the client played its opening cinematic and rendered the Battle.net login screen on two launches using the working Mali configuration. Tests used Android 16, HyperOS OS3.0.303.0.WNERUXM, Vulkan 1.3.247, DXVK 2.4.1 and client 1.60.1.70938. Character selection, entering the world and sustained gameplay are unverified. [Mali installation and testing guide (Russian)](MALI-EXPERIMENTAL.md)

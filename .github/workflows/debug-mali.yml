@@ -28,6 +28,11 @@ jobs:
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
       - name: Build and test
         run: bash gradlew --no-daemon -PmaliSideBySide=true :app:assembleModernDebug :app:testModernDebugUnitTest --tests 'app.gamenative.ui.screen.wow.*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WoW-Forever-Mali-ci-debug
+          path: app/build/outputs/apk/modern/debug/*.apk
+          if-no-files-found: error
       # Upstream currently has 10 unrelated errors; preserve the report without suppressing rules.
       - name: Lint report (known upstream findings)
         continue-on-error: true
