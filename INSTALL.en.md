@@ -2,7 +2,7 @@
 
 [Русский](INSTALL.ru.md) · [Download the APK](https://github.com/saaxaa/wow-forever-android-mali/releases/download/v2.4.3-mali.1/WoW-Forever-Mali-side-by-side-debug.apk)
 
-On a Xiaomi 14T with Mali-G615 MC6, Android 16 and HyperOS OS3.0.303.0.WNERUXM, the client reached the Battle.net login screen on two launches. The opening cinematic and login screen rendered with system Vulkan 1.3.247 and DXVK 2.4.1. With a saved login, version 2.4.3-mali.1 reached Battle.net’s WoW license selector. Character selection and in-world gameplay still need testing.
+On a Xiaomi 14T with Mali-G615 MC6, Android 16 and HyperOS OS3.0.303.0.WNERUXM, the client reached the Battle.net login screen on two launches. The opening cinematic and login screen rendered with system Vulkan 1.3.247 and DXVK 2.4.1. With a saved login, version 2.4.3-mali.1 reached Battle.net’s WoW license selector. Confirming the Classic preset opened the character screen with **Enter World**. World entry and sustained gameplay still need testing.
 
 To upgrade from the first Mali release, install the linked APK over your existing copy once. This keeps your game data and saved login. Starting with 2.4.3-mali.1, the launcher checks this fork for updates, including Mali prereleases. Use **Refresh** to check both the launcher and game versions.
 
@@ -33,6 +33,10 @@ adb shell 'set -o pipefail; run-as app.wowforever.mali mkdir files/wow-private.i
 ### Choose a WoW license on the Select account screen
 
 Tap the row for your WoW license. Once it turns blue, tap **Accept**. If tapping the row does not change the selection, use the Android **Back** gesture to open the quick menu. Select **Controller**, scroll down and enable **Touchscreen Mode**. Close the menu with **Back** and tap the license again. The container remembers this setting.
+
+### Confirm Classic or Enhanced
+
+On **Choose Your Experience Preset**, the gold outline shows the selected preset. The **A Select** prompt refers to the gamepad button. If the buttons are hidden, use the Android **Back** gesture, choose **Controller** and enable the on-screen controller. Close the menu with the **×**, then press the round **A** button on the right, below **Y**. On the tested Xiaomi 14T this confirmed **Classic** and opened the screen with **Enter World**.
 
 ### If the game returns to the launcher
 

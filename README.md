@@ -4,7 +4,7 @@
 
 This fork adds an experimental system Vulkan backend for the Xiaomi 14T with MediaTek Dimensity 8300-Ultra and Mali-G615 MC6. It builds on **WoW Forever for Android by @jaredgei**, which brought Blizzard’s Windows ARM64 WoW client to Android using GameNative, Wine and DXVK. The fork retains the upstream Adreno/Turnip path. [Original project](https://github.com/jaredgei/wow-forever-android) · [Initial base, v2.4.2](https://github.com/jaredgei/wow-forever-android/commit/62936c2399b7111b0251fa8099bef86379a3d91a)
 
-**Verified on a physical Xiaomi 14T:** the client played its opening cinematic and rendered the Battle.net login screen on two launches using the working Mali configuration. Tests used Android 16, HyperOS OS3.0.303.0.WNERUXM, Vulkan 1.3.247, DXVK 2.4.1 and client 1.60.1.70938. With a saved login, v2.4.3-mali.1 reached Battle.net’s WoW license selector. Character selection and in-world gameplay still need testing. [Mali installation and testing guide (Russian)](MALI-EXPERIMENTAL.md)
+**Verified on a physical Xiaomi 14T:** the client played its opening cinematic and rendered the Battle.net login screen on two launches using the working Mali configuration. Tests used Android 16, HyperOS OS3.0.303.0.WNERUXM, Vulkan 1.3.247, DXVK 2.4.1 and client 1.60.1.70938. With a saved login, v2.4.3-mali.1 passed the WoW license selector and Classic preset confirmation, then displayed the character screen with **Enter World**. World entry and sustained gameplay still need testing. [Mali installation and testing guide (Russian)](MALI-EXPERIMENTAL.md)
 
 > Unofficial community project. Not affiliated with or endorsed by Blizzard Entertainment. You need your own Battle.net account with WoW Forever access. This repo and its releases contain **no** Blizzard game files.
 
@@ -14,7 +14,7 @@ This fork adds an experimental system Vulkan backend for the Xiaomi 14T with Med
 
 | Device | Status |
 | :--- | :--- |
-| Xiaomi 14T (Dimensity 8300-Ultra / Mali-G615 MC6) | Opening cinematic, Battle.net login screen and WoW license selection verified |
+| Xiaomi 14T (Dimensity 8300-Ultra / Mali-G615 MC6) | Opening cinematic, Battle.net login, license selection and character screen verified |
 | AYN Thor (Snapdragon 8 Gen 2 / Adreno 740) | Tested, reaches the game world with controller support |
 | Retroid Pocket 6 (Snapdragon 8 Gen 2 / Adreno 740) | Tested by the original community setup |
 | AYN Odin 2 / Mini (Snapdragon 8 Gen 2) | Expected to work |
