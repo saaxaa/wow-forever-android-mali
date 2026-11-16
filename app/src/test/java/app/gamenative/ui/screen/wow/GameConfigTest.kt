@@ -54,4 +54,15 @@ class GameConfigTest {
             configWtf(root).readLines().filter { it.contains("Resolution ") },
         )
     }
+
+    @Test
+    fun maliSkipsTheInitialMovieWithoutOverwritingThePlayersSetting() {
+        val root = install("eu")
+        ensureGameConfig(root, "1280x720", null, skipFirstIntro = true)
+        val config = configWtf(root)
+        assertEquals(1, config.readLines().count { it == "SET playIntroMovie \"1\"" })
+        config.writeText(config.readText().replace("playIntroMovie \"1\"", "playIntroMovie \"0\""))
+        ensureGameConfig(root, "1280x720", null, skipFirstIntro = true)
+        assertEquals(1, config.readLines().count { it == "SET playIntroMovie \"0\"" })
+    }
 }

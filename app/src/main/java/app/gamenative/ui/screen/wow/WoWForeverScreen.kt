@@ -75,7 +75,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -120,6 +120,7 @@ fun WoWForeverScreen(
     var isDownloadingAppUpdate by remember { mutableStateOf(false) }
     var appUpdateProgress by remember { mutableFloatStateOf(0f) }
     var showAppUpdateDialog by remember { mutableStateOf(false) }
+    var launchAfterUpdateDismissal by remember { mutableStateOf(false) }
     var showAppUpdatePermissionDialog by remember { mutableStateOf(false) }
     var pendingInstallPermission by remember { mutableStateOf(false) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
@@ -128,7 +129,7 @@ fun WoWForeverScreen(
     suspend fun fetchAppUpdate(): AppUpdater.Release? {
         val release = AppUpdater.check()
         appUpdate = release
-        if (release != null) {
+        if (release != null && !isLaunching) {
             showAppUpdateDialog = true
         }
         return release
@@ -242,6 +243,14 @@ fun WoWForeverScreen(
         }
     }
 
+    fun dismissAppUpdate() {
+        showAppUpdateDialog = false
+        if (launchAfterUpdateDismissal) {
+            launchAfterUpdateDismissal = false
+            launchGame()
+        }
+    }
+
     LifecycleResumeEffect(gamePath) {
         // Storage access may have just been granted, which can reveal an install that was invisible before.
         if (!isUpdating && !isLaunching) gamePath = GamePath.load(context)
@@ -249,12 +258,6 @@ fun WoWForeverScreen(
         isLaunching = false
         statusText = READY_STATUS
         BattleNetSignIn.removeLoginFile(File(gamePath))
-        if (versionStatus == null && !WoWLauncherState.shouldAutoLaunch) {
-            checkVersionStatus()
-        }
-        if (appUpdate == null && !WoWLauncherState.shouldAutoLaunch) {
-            checkAppUpdate()
-        }
         if (pendingInstallPermission && AppUpdater.canInstall(context)) {
             pendingInstallPermission = false
             downloadedApk?.takeIf { it.exists() }?.let { AppUpdater.install(context, it) }
@@ -399,15 +402,17 @@ fun WoWForeverScreen(
                 checkAppUpdate()
             }
             else -> {
-                val updateJob = async { fetchAppUpdate() }
-                fetchVersionStatus()
-                val update = updateJob.await()
-                Timber.i("WoWForeverScreen LaunchedEffect: isOutdated=${versionStatus?.isOutdated}, appUpdate=$update")
+                // Bound only the wait for the optional update. The network call may finish later.
+                val check = scope.async { AppUpdater.check() }
+                val available = withTimeoutOrNull(1200L) { check.await() }
                 WoWLauncherState.shouldAutoLaunch = false
-                if (versionStatus?.isOutdated == true || update != null) {
-                    PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
-                } else {
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                if (available == null) {
                     launchGame()
+                } else {
+                    appUpdate = available
+                    showAppUpdateDialog = true
+                    launchAfterUpdateDismissal = true
                 }
             }
         }
@@ -758,11 +763,13 @@ fun WoWForeverScreen(
 
     if (showLoginDialog) {
         BattleNetCredentialDialog(
+            launchAfterSave = canPlay,
             onDismiss = { showLoginDialog = false },
             onConfirm = { login ->
                 showLoginDialog = false
                 BattleNetSignIn.save(context, login)
                 hasSavedLogin = true
+                if (canPlay) launchGame()
             },
         )
     }
@@ -847,7 +854,7 @@ fun WoWForeverScreen(
         appUpdate?.let { update ->
             AlertDialog(
                 onDismissRequest = {
-                    if (!isDownloadingAppUpdate) showAppUpdateDialog = false
+                    if (!isDownloadingAppUpdate) dismissAppUpdate()
                 },
                 title = {
                     Text(
@@ -907,7 +914,7 @@ fun WoWForeverScreen(
                 },
                 dismissButton = {
                     if (!isDownloadingAppUpdate) {
-                        TextButton(onClick = { showAppUpdateDialog = false }) {
+                        TextButton(onClick = ::dismissAppUpdate) {
                             Text("LATER", color = WowMuted)
                         }
                     }
@@ -1274,7 +1281,7 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
     try {
-        ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context))
+        ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context), skipFirstIntro = gpu.systemVulkan)
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
@@ -1382,7 +1389,7 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "accessibilityScreenNarrationEnabled" to "\"0\"",
 )
 
-internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion?) {
+internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion?, skipFirstIntro: Boolean = false) {
     val flavorDir = File(root, FLAVOR_DIR)
     flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
@@ -1411,11 +1418,14 @@ internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion
 
     val forced = mapOf("gxApi" to CONFIG_DEFAULTS.getValue("gxApi"), "portal" to "\"${region?.name ?: portalOf(root)}\"") +
         RESOLUTION_KEYS.associateWith { "\"$screenSize\"" }
-    val forcedLines = forced.map { (key, value) -> "SET $key $value" }
     val original = configWtf.readLines()
-    if (!original.containsAll(forcedLines)) {
+    // The 1.60 Forever client writes 1 after the opening cinematic. Keep explicit player settings.
+    val introDefault = if (skipFirstIntro && original.none { it.startsWith("SET playIntroMovie ", ignoreCase = true) })
+        listOf("SET playIntroMovie \"1\"") else emptyList()
+    val forcedLines = forced.map { (key, value) -> "SET $key $value" }
+    if (introDefault.isNotEmpty() || !original.containsAll(forcedLines)) {
         val kept = original.filterNot { line -> forced.keys.any { line.startsWith("SET $it ", ignoreCase = true) } }
-        configWtf.writeText((kept + forcedLines).joinToString("\n") + "\n")
+        configWtf.writeText((kept + introDefault + forcedLines).joinToString("\n") + "\n")
     }
 }
 

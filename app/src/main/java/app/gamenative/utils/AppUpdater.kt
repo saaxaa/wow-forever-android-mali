@@ -10,11 +10,17 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 import timber.log.Timber
 
 object AppUpdater {
-    private const val RELEASES_URL = "https://api.github.com/repos/jaredgei/wow-forever-android/releases/latest"
+    private const val REPO = "saaxaa/wow-forever-android-mali"
+    internal const val MALI_APK = "WoW-Forever-Mali-side-by-side-debug.apk"
+    private val releasesHttp by lazy { Net.http.newBuilder().callTimeout(6, TimeUnit.SECONDS).build() }
+    private val maliTag = Regex("""v?[0-9]+(?:\.[0-9]+)+-mali\.([0-9]+)""")
+    private val packageAsset = if (BuildConfig.APPLICATION_ID.endsWith(".mali")) MALI_APK else "WoW-Forever.apk"
 
     data class Release(
         val version: String,
@@ -39,43 +45,55 @@ object AppUpdater {
             if (lv > cv) return true
             if (lv < cv) return false
         }
-        return false
+        fun maliRevision(version: String) =
+            maliTag.matchEntire(version)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return maliRevision(latest) > maliRevision(current)
     }
 
-    fun parseRelease(jsonString: String, currentVersion: String = BuildConfig.VERSION_NAME): Release? = runCatching {
-        val json = JSONObject(jsonString)
-        val tag = json.optString("tag_name")
-        if (!isNewer(tag, currentVersion)) return null
+    internal fun findUpdate(body: String, current: String, assetName: String): Release? {
+        val releases = JSONArray(body)
+        var newest: Release? = null
+        for (i in 0 until releases.length()) {
+            val release = releases.optJSONObject(i) ?: continue
+            val candidate = parseRelease(release, newest?.version ?: current, assetName) ?: continue
+            newest = candidate
+        }
+        return newest
+    }
 
+    internal fun parseRelease(json: JSONObject, currentVersion: String, assetName: String): Release? {
+        val tag = json.optString("tag_name")
+        if (json.optBoolean("draft") || !isNewer(tag, currentVersion)) return null
+        if (assetName == MALI_APK && !maliTag.matches(tag)) return null
+        if (assetName != MALI_APK && json.optBoolean("prerelease")) return null
         val assets = json.optJSONArray("assets") ?: return null
+        val expectedUrl = "https://github.com/$REPO/releases/download/$tag/$assetName"
         for (i in 0 until assets.length()) {
             val asset = assets.optJSONObject(i) ?: continue
-            val name = asset.optString("name")
-            val url = asset.optString("browser_download_url")
-            if (name.endsWith(".apk", ignoreCase = true) && url.isNotBlank()) {
+            if (asset.optString("name") == assetName && asset.optString("browser_download_url") == expectedUrl) {
                 return Release(
                     version = tag.trimStart('v', 'V'),
                     name = json.optString("name", tag),
                     notes = json.optString("body"),
-                    downloadUrl = url,
+                    downloadUrl = expectedUrl,
                     sizeBytes = asset.optLong("size", 0L),
                 )
             }
         }
-        null
-    }.getOrNull()
+        return null
+    }
 
     suspend fun check(currentVersion: String = BuildConfig.VERSION_NAME): Release? = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
-                .url(RELEASES_URL)
+                .url("https://api.github.com/repos/$REPO/releases?per_page=100")
                 .header("User-Agent", "WoW-Forever-Android")
                 .header("Accept", "application/vnd.github+json")
                 .build()
-            Net.http.newCall(request).execute().use { response ->
+            releasesHttp.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val body = response.body?.string() ?: return@withContext null
-                parseRelease(body, currentVersion)
+                findUpdate(body, currentVersion, packageAsset)
             }
         }.getOrElse {
             Timber.w(it, "AppUpdater check failed")

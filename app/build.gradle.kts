@@ -114,7 +114,7 @@ android {
         debug {
             if (providers.gradleProperty("maliSideBySide").orNull == "true") {
                 applicationIdSuffix = ".mali"
-                versionNameSuffix = "-mali-test"
+                versionNameSuffix = "-mali.1"
                 manifestPlaceholders["appLabel"] = "WoW Forever Mali (test)"
             }
             isDebuggable = true

@@ -129,6 +129,7 @@ object BattleNetSignIn {
 
 @Composable
 fun BattleNetCredentialDialog(
+    launchAfterSave: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (BattleNetSignIn.Login) -> Unit,
 ) {
@@ -170,7 +171,7 @@ fun BattleNetCredentialDialog(
             TextButton(
                 enabled = email.isNotBlank() && password.isNotEmpty(),
                 onClick = { onConfirm(BattleNetSignIn.Login(email.trim(), password)) },
-            ) { Text("Save") }
+            ) { Text(if (launchAfterSave) "Save and play" else "Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

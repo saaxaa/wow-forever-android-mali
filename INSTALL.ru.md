@@ -1,8 +1,10 @@
 # WoW Forever на Xiaomi 14T
 
-[English](INSTALL.en.md) · [Скачать APK](https://github.com/saaxaa/wow-forever-android-mali/releases/download/v2.4.2-mali.1/WoW-Forever-Mali-side-by-side-debug.apk)
+[English](INSTALL.en.md) · [Скачать APK](https://github.com/saaxaa/wow-forever-android-mali/releases/download/v2.4.3-mali.1/WoW-Forever-Mali-side-by-side-debug.apk)
 
-На Xiaomi 14T с Mali-G615 MC6, Android 16 и HyperOS OS3.0.303.0.WNERUXM клиент дважды дошёл до экрана входа Battle.net. Проверены заставка и вывод изображения через системный Vulkan 1.3.247 и DXVK 2.4.1. Вход в аккаунт, выбор персонажа и игра в мире требуют отдельной проверки.
+На Xiaomi 14T с Mali-G615 MC6, Android 16 и HyperOS OS3.0.303.0.WNERUXM клиент дважды дошёл до экрана входа Battle.net. Проверены заставка и вывод изображения через системный Vulkan 1.3.247 и DXVK 2.4.1. Версия 2.4.3-mali.1 с сохранённым логином дошла до выбора лицензии WoW. Выбор персонажа и вход в мир требуют отдельной проверки.
+
+Обновление с первого Mali-релиза установите один раз по ссылке выше поверх существующего APK. Игровые данные и сохранённый логин сохранятся. Начиная с 2.4.3-mali.1 лаунчер проверяет релизы этого форка, включая предварительные версии Mali. Кнопка **Refresh** проверяет обновления лаунчера и игры.
 
 ### Установить и проверить Vulkan
 

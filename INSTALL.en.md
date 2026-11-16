@@ -1,8 +1,10 @@
 # WoW Forever on Xiaomi 14T
 
-[Русский](INSTALL.ru.md) · [Download the APK](https://github.com/saaxaa/wow-forever-android-mali/releases/download/v2.4.2-mali.1/WoW-Forever-Mali-side-by-side-debug.apk)
+[Русский](INSTALL.ru.md) · [Download the APK](https://github.com/saaxaa/wow-forever-android-mali/releases/download/v2.4.3-mali.1/WoW-Forever-Mali-side-by-side-debug.apk)
 
-On a Xiaomi 14T with Mali-G615 MC6, Android 16 and HyperOS OS3.0.303.0.WNERUXM, the client reached the Battle.net login screen on two launches. The opening cinematic and login screen rendered with system Vulkan 1.3.247 and DXVK 2.4.1. Account sign-in, character selection and in-world gameplay still need testing.
+On a Xiaomi 14T with Mali-G615 MC6, Android 16 and HyperOS OS3.0.303.0.WNERUXM, the client reached the Battle.net login screen on two launches. The opening cinematic and login screen rendered with system Vulkan 1.3.247 and DXVK 2.4.1. With a saved login, version 2.4.3-mali.1 reached Battle.net’s WoW license selector. Character selection and in-world gameplay still need testing.
+
+To upgrade from the first Mali release, install the linked APK over your existing copy once. This keeps your game data and saved login. Starting with 2.4.3-mali.1, the launcher checks this fork for updates, including Mali prereleases. Use **Refresh** to check both the launcher and game versions.
 
 ### Install and test Vulkan
 
