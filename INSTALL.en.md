@@ -30,6 +30,10 @@ adb shell 'set -o pipefail; run-as app.wowforever.mali mkdir files/wow-private.i
 
 3. Reopen the app. Check that the game path ends in `files/wow-private`. Select **720p** and tap **Play**. The first launch prepares Wine. Testing beyond the login screen requires your own account with access to WoW Forever.
 
+### Choose a WoW license on the Select account screen
+
+Tap the row for your WoW license. Once it turns blue, tap **Accept**. If tapping the row does not change the selection, use the Android **Back** gesture to open the quick menu. Select **Controller**, scroll down and enable **Touchscreen Mode**. Close the menu with **Back** and tap the license again. The container remembers this setting.
+
 ### If the game returns to the launcher
 
 Save the last session's logs before pressing **Play** again. Run the first two commands in Windows PowerShell. On Linux or macOS, replace the second command with the line below the block.
